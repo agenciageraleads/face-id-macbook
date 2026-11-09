@@ -34,8 +34,6 @@ struct MenuContent: View {
         Divider()
 
         Button(model.hasPassword ? L10n.t("menu.changePassword") : L10n.t("menu.setPassword")) { model.setPassword() }
-        Button(L10n.t("menu.typePassword")) { model.tryUnlockNow() }
-            .disabled(!model.hasPassword)
 
         if !model.accessibilityTrusted {
             Button(L10n.t("menu.grantAccessibility")) { model.requestAccessibility() }

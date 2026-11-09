@@ -52,7 +52,6 @@ struct SettingsWindowView: View {
         case .general: GeneralPane(model: model)
         case .recognition: RecognitionPane(model: model)
         case .unlock: UnlockPane(model: model)
-        case .lockButton: LockButtonPane(model: model)
         case .about: AboutPane(model: model)
         }
     }
@@ -78,7 +77,6 @@ private enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case general
     case recognition
     case unlock
-    case lockButton
     case about
 
     var id: String { rawValue }
@@ -88,7 +86,6 @@ private enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .general: L10n.t("settings.tab.general")
         case .recognition: L10n.t("settings.recognition")
         case .unlock: L10n.t("settings.unlock")
-        case .lockButton: L10n.t("settings.lockScreenButton")
         case .about: L10n.t("settings.tab.about")
         }
     }
@@ -98,7 +95,6 @@ private enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .general: "face.smiling"
         case .recognition: "eye"
         case .unlock: "lock.open"
-        case .lockButton: "button.roundedtop.horizontal"
         case .about: "info.circle"
         }
     }
@@ -108,7 +104,6 @@ private enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .general: SettingsPalette.gray
         case .recognition: SettingsPalette.green
         case .unlock: SettingsPalette.blue
-        case .lockButton: SettingsPalette.indigo
         case .about: SettingsPalette.teal
         }
     }
@@ -130,7 +125,7 @@ private struct GeneralPane: View {
             }
 
             Section {
-                NotchPreview(showsText: model.showMatchText)
+                NotchPreview(showsText: false)
                     .listRowInsets(EdgeInsets(top: 12, leading: 14, bottom: 14, trailing: 14))
             } header: {
                 Text(L10n.t("settings.previewSection"))
@@ -234,11 +229,6 @@ private struct RecognitionPane: View {
                     .labelsHidden()
                     .frame(width: 160)
                 }
-
-                Toggle(L10n.t("settings.showMatchText"), isOn: Binding(
-                    get: { model.showMatchText },
-                    set: { model.setShowMatchText($0) }
-                ))
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -393,13 +383,6 @@ private struct UnlockPane: View {
                 ) {
                     model.setPassword()
                 }
-                SettingsActionRow(
-                    title: L10n.t("menu.typePassword"),
-                    symbol: "keyboard",
-                    color: SettingsPalette.blue
-                ) {
-                    model.tryUnlockNow()
-                }
                 if !model.accessibilityTrusted {
                     SettingsActionRow(
                         title: L10n.t("menu.grantAccessibility"),
@@ -414,83 +397,6 @@ private struct UnlockPane: View {
             }
         }
         .onAppear { model.refreshPermissions() }
-    }
-}
-
-private struct LockButtonPane: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        SettingsPane {
-            Section {
-                Toggle(L10n.t("settings.preview"), isOn: Binding(
-                    get: { model.retryPreview },
-                    set: { model.setRetryPreview($0) }
-                ))
-                Text(L10n.t("settings.previewHint"))
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text(L10n.t("settings.lockScreenButton"))
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(L10n.t("settings.size"))
-                        Spacer()
-                        Text(String(format: "%.0f pt", model.retryButtonSize))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: Binding(
-                            get: { model.retryButtonSize },
-                            set: { model.updateRetryButtonSize($0) }
-                        ),
-                        in: 40...80,
-                        step: 2
-                    )
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(L10n.t("settings.horizontal"))
-                        Spacer()
-                        Text(String(format: "%.0f pt", model.retryOffsetX))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: Binding(
-                            get: { model.retryOffsetX },
-                            set: { model.updateRetryOffsetX($0) }
-                        ),
-                        in: -200...200,
-                        step: 2
-                    )
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(L10n.t("settings.vertical"))
-                        Spacer()
-                        Text(String(format: "%.1f%%", model.retryVerticalFraction * 100))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: Binding(
-                            get: { model.retryVerticalFraction },
-                            set: { model.updateRetryVerticalFraction($0) }
-                        ),
-                        in: 0.5...0.95,
-                        step: 0.002
-                    )
-                }
-            } header: {
-                Text(L10n.t("settings.position"))
-            }
-        }
     }
 }
 
@@ -528,7 +434,7 @@ private struct AboutPane: View {
                     symbol: "chevron.left.forwardslash.chevron.right",
                     color: SettingsPalette.gray
                 ) {
-                    if let url = URL(string: "https://github.com/") {
+                    if let url = URL(string: "https://github.com/agenciageraleads/face-id-macbook") {
                         NSWorkspace.shared.open(url)
                     }
                 }

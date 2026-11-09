@@ -55,7 +55,10 @@ public final class LockWatcher {
         // The lid (or any display wake) while the session is locked is the one
         // moment where scanning should start on its own.
         let workspaceCenter = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification] {
+        // Only the display waking counts. `didWakeNotification` also fires on dark
+        // wakes (Power Nap, network maintenance), which turned the camera on every
+        // few minutes with the lid closed.
+        for name in [NSWorkspace.screensDidWakeNotification] {
             let token = workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 guard let self, Self.isScreenLocked else { return }
                 Log.lock.info("display woke while locked")

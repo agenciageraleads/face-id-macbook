@@ -10,7 +10,7 @@ packages:
     path: .
   SkyLightWindow:
     url: https://github.com/Lakr233/SkyLightWindow
-    from: "1.0.0"
+    exactVersion: "1.0.0"
   Lottie:
     url: https://github.com/airbnb/lottie-spm
     from: "4.0.0"
@@ -22,6 +22,10 @@ targets:
     sources:
       - path: Sources/FaceMacApp
       - path: Resources/FaceEmbedding.mlmodelc
+        buildPhase: resources
+      - path: Resources/FASV2.mlmodelc
+        buildPhase: resources
+      - path: Resources/FASV1SE.mlmodelc
         buildPhase: resources
       - path: Resources/FaceID.json
         buildPhase: resources
@@ -36,10 +40,11 @@ targets:
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSCameraUsageDescription: FaceMac uses the built-in camera to recognise you and unlock the screen.
-        NSHumanReadableCopyright: GPL-3.0 licensed
+        NSHumanReadableCopyright: GPL-3.0 licensed. Based on FaceMac by c1osed1.
     entitlements:
       path: Resources/FaceMac.entitlements
-      properties: {}
+      properties:
+        com.apple.security.device.camera: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.facemac.app
@@ -51,10 +56,11 @@ targets:
         # keeps its grants across rebuilds. Ad-hoc ("-") changes the cdhash on
         # every build and forces the user to re-approve.
         CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "Apple Development: zxckidakoev@icloud.com (9KW4KL9556)"
-        DEVELOPMENT_TEAM: "4X82F68BG9"
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: "" # pass yours: DEVELOPMENT_TEAM=XXXXXXXXXX scripts/install.sh
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
         ENABLE_APP_SANDBOX: NO
     dependencies:
       - package: FaceMac

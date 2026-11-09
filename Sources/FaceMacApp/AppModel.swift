@@ -165,9 +165,9 @@ final class AppModel: ObservableObject {
             }
         }
 
-        // The lock-screen button is offered while locked and idle, and after a
-        // failed attempt so the user can try again.
-        retryButton.setPrompted(showScanButton)
+        // No button on the lock screen: activity starts a scan on its own.
+        _ = showScanButton
+        retryButton.setPrompted(false)
     }
 
     func previewNotch() {
@@ -399,6 +399,10 @@ final class AppModel: ObservableObject {
     // MARK: Unlock now (manual)
 
     func tryUnlockNow() {
+        guard LockWatcher.isScreenLocked else {
+            statusText = "Disabled: the screen is not locked"
+            return
+        }
         guard let password = try? keychain.password() else {
             statusText = "Set the saved password first"
             return

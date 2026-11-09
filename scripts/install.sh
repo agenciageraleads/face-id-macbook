@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Build FaceMac and install it to a stable location, then launch it.
 #
+# Usage: DEVELOPMENT_TEAM=XXXXXXXXXX scripts/install.sh
+#
 # The app is signed with a stable "Apple Development" identity (see project.yml),
 # so macOS Camera and Accessibility grants survive rebuilds. Keep the app in one
 # place — mixing locations can make TCC treat it as different apps.
@@ -23,7 +25,8 @@ echo "building..."
 xcodebuild \
   -project "$ROOT/FaceMac.xcodeproj" \
   -scheme FaceMac \
-  -configuration Debug \
+  -configuration Release \
+  DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:?set DEVELOPMENT_TEAM to your Apple team ID}" \
   -derivedDataPath "$DERIVED" \
   build >/dev/null
 
@@ -32,7 +35,7 @@ mkdir -p "$DEST"
 pkill -f "FaceMac.app/Contents/MacOS/FaceMac" 2>/dev/null || true
 sleep 0.5
 rm -rf "$APP"
-cp -R "$DERIVED/Build/Products/Debug/FaceMac.app" "$APP"
+cp -R "$DERIVED/Build/Products/Release/FaceMac.app" "$APP"
 
 echo "signature:"
 codesign -dv "$APP" 2>&1 | grep -E "Identifier|Authority|TeamIdentifier" || true

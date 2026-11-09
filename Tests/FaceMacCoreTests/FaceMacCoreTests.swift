@@ -343,3 +343,49 @@ final class LivenessTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.isConfirmed(for: .off))
     }
 }
+
+final class SpoofCropTests: XCTestCase {
+    private func buffer(_ fill: (_ row: Int) -> (UInt8, UInt8, UInt8)) -> CVPixelBuffer {
+        var result: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 640, 480, kCVPixelFormatType_32BGRA, nil, &result)
+        let buffer = result!
+        CVPixelBufferLockBaseAddress(buffer, [])
+        let base = CVPixelBufferGetBaseAddress(buffer)!.assumingMemoryBound(to: UInt8.self)
+        let stride = CVPixelBufferGetBytesPerRow(buffer)
+        for row in 0..<480 {
+            let (b, g, r) = fill(row)
+            for col in 0..<640 {
+                base[row * stride + col * 4] = b
+                base[row * stride + col * 4 + 1] = g
+                base[row * stride + col * 4 + 2] = r
+                base[row * stride + col * 4 + 3] = 255
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        return buffer
+    }
+
+    func testCropKeepsBGRChannelOrder() throws {
+        let box = CGRect(x: 0.3, y: 0.3, width: 0.3, height: 0.3)
+        let crop = try XCTUnwrap(SpoofDetector.crop(buffer { _ in (10, 20, 30) }, box: box, scale: 2.7))
+        XCTAssertEqual(crop.shape, [1, 3, 80, 80])
+        XCTAssertEqual(crop[[0, 0, 40, 40] as [NSNumber]].floatValue, 10, accuracy: 0.01)
+        XCTAssertEqual(crop[[0, 1, 40, 40] as [NSNumber]].floatValue, 20, accuracy: 0.01)
+        XCTAssertEqual(crop[[0, 2, 40, 40] as [NSNumber]].floatValue, 30, accuracy: 0.01)
+    }
+
+    func testCropFlipsVisionCoordinates() throws {
+        // Top half of the image is white. A box high up in Vision coordinates
+        // (origin bottom-left) must read from it.
+        let image = buffer { $0 < 240 ? (255, 255, 255) : (0, 0, 0) }
+        let box = CGRect(x: 0.4, y: 0.65, width: 0.2, height: 0.2)
+        let crop = try XCTUnwrap(SpoofDetector.crop(image, box: box, scale: 1))
+        XCTAssertEqual(crop[[0, 0, 40, 40] as [NSNumber]].floatValue, 255, accuracy: 0.01)
+    }
+
+    func testCropRejectsOtherPixelFormats() {
+        var result: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 64, 48, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange, nil, &result)
+        XCTAssertNil(SpoofDetector.crop(result!, box: CGRect(x: 0.2, y: 0.2, width: 0.5, height: 0.5), scale: 2.7))
+    }
+}

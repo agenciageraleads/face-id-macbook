@@ -54,7 +54,7 @@ struct NotchView: View {
             FaceScanView()
                 .transition(.opacity.combined(with: .scale(scale: 0.88)))
 
-        case .matched(let similarity):
+        case .matched:
             HStack(spacing: 10) {
                 successAnimation
                 if presenter.showsMatchText {
@@ -62,10 +62,6 @@ struct NotchView: View {
                         Text(L10n.t("notch.itsYou"))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white)
-                        Text(String(format: L10n.t("notch.match"), Int((similarity * 100).rounded())))
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(.white.opacity(0.5))
                     }
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }

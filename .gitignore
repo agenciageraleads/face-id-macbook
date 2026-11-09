@@ -13,6 +13,10 @@ Resources/FaceMac.entitlements
 # Large generated model assets — rebuild with scripts/fetch-model.sh
 Resources/FaceEmbedding.mlpackage/
 Resources/FaceEmbedding.mlmodelc/
+Resources/FASV2.mlpackage/
+Resources/FASV2.mlmodelc/
+Resources/FASV1SE.mlpackage/
+Resources/FASV1SE.mlmodelc/
 Tools/Conversion/.venv/
 Tools/Conversion/models/
 Tools/Conversion/WebEyeTrack-upstream/

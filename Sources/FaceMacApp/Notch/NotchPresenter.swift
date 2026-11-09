@@ -23,7 +23,7 @@ final class NotchPresenter: ObservableObject {
     @Published private(set) var phase: Phase = .hidden
     @Published private(set) var message: String = ""
     /// Mirrors `AppSettings.showMatchText` so the notch can react live.
-    @Published var showsMatchText: Bool = true
+    @Published var showsMatchText: Bool = false
 
     /// Called when the user taps "Try Again" on the failed notch.
     var onRetry: (() -> Void)?
@@ -109,7 +109,7 @@ final class NotchPresenter: ObservableObject {
     // MARK: Lifecycle
 
     func start() {
-        showsMatchText = AppSettings.shared.showMatchText
+        showsMatchText = false // Animation only, no text.
         geometry = NotchGeometry.preferred()
         preparePanel()
         NotificationCenter.default.addObserver(

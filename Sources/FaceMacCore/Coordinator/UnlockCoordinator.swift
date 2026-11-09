@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreMedia
 import CoreVideo
 import Foundation
@@ -42,6 +43,11 @@ public final class UnlockCoordinator {
     private let keychain: KeychainStore
     private let detector = FaceDetector()
     private let liveness = LivenessTracker()
+    private let spoof = SpoofDetector()
+    /// Minimum "real face" score per frame. See "Security" in the README for how
+    /// this was measured and what it does not cover.
+    private static let minimumRealScore: Float = 0.7
+    private static let minimumStreak = 5
     private let embedder: FaceEmbedder
     private let capture: CameraCapture
     private let injector = KeyboardInjector()
@@ -64,6 +70,15 @@ public final class UnlockCoordinator {
     private var scanTimeoutWork: DispatchWorkItem?
     /// Set when the face matched but liveness was not proven yet.
     private var livenessBlocked = false
+
+    // Scan on mouse or keyboard activity at the lock screen, with no button.
+    private var activityTimer: Timer?
+    private var activityArmedAt = Date.distantPast
+    private var lastScanEndedAt = Date.distantPast
+    /// Ignores the gesture that locked the screen (releasing Ctrl+Cmd+Q, etc.).
+    private let activityGrace: TimeInterval = 2
+    /// Minimum gap between automatic attempts.
+    private let activityCooldown: TimeInterval = 5
 
     public init(
         settings: AppSettings = .shared,
@@ -91,6 +106,7 @@ public final class UnlockCoordinator {
     }
 
     public func stop() {
+        stopActivityWatch()
         lockWatcher.stop()
         stopScanning()
         state = .idle
@@ -218,7 +234,41 @@ public final class UnlockCoordinator {
         guard isScanning else { return }
         capture.relinquish()
         isScanning = false
+        lastScanEndedAt = Date()
         resetMatchStreak()
+    }
+
+    private func startActivityWatch() {
+        activityArmedAt = Date()
+        guard activityTimer == nil else { return }
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkActivity()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        activityTimer = timer
+    }
+
+    private func stopActivityWatch() {
+        activityTimer?.invalidate()
+        activityTimer = nil
+    }
+
+    private func checkActivity() {
+        guard !isScanning, settings.isEnabled, LockWatcher.isScreenLocked else { return }
+        switch state {
+        case .prompted, .timedOut, .rejected, .spoof: break
+        default: return
+        }
+        let now = Date()
+        guard now.timeIntervalSince(lastScanEndedAt) >= activityCooldown,
+              let anyInput = CGEventType(rawValue: ~0) else { return }
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
+        let lastEvent = now.addingTimeInterval(-idle)
+        // Only new activity counts: after the lock gesture and the last attempt.
+        guard lastEvent > activityArmedAt.addingTimeInterval(activityGrace),
+              lastEvent > lastScanEndedAt else { return }
+        Log.app.info("activity on the lock screen: scanning")
+        startScanning()
     }
 
     private func injectorReady() -> Bool {
@@ -293,6 +343,17 @@ public final class UnlockCoordinator {
             return
         }
 
+        // Every frame in the streak must look like a real face, not a photo or a
+        // screen. No score means no unlock: this check fails closed.
+        if settings.livenessMode.requiresConfirmation {
+            guard let score = spoof?.score(pixelBuffer: pixelBuffer, face: face),
+                  score.real >= Self.minimumRealScore else {
+                livenessBlocked = true
+                resetMatchStreak()
+                return
+            }
+        }
+
         if let started = streakStartedAt, now.timeIntervalSince(started) > 2.5 {
             matchStreak = 0
             streakStartedAt = nil
@@ -304,7 +365,7 @@ public final class UnlockCoordinator {
             "streak \(self.matchStreak, privacy: .public)/\(self.settings.requiredFrames, privacy: .public) best=\(best.similarity, privacy: .public) centroid=\(centroid, privacy: .public)"
         )
 
-        guard matchStreak >= settings.requiredFrames else { return }
+        guard matchStreak >= max(settings.requiredFrames, Self.minimumStreak) else { return }
 
         // Identity alone is not enough: a printed photo matches too. Hold the
         // unlock until the face has proven it is alive.
@@ -328,6 +389,14 @@ public final class UnlockCoordinator {
     }
 
     private func unlock(similarity: Float) {
+        // Never type the password anywhere but the lock screen: unlocked, it would
+        // land in the frontmost app, followed by Return.
+        guard LockWatcher.isScreenLocked else {
+            Log.app.info("match ignored: screen is not locked, password not typed")
+            stopScanning()
+            state = .armed
+            return
+        }
         state = .unlocking(similarity: similarity)
         Log.app.info("match, similarity=\(similarity, privacy: .public)")
 
@@ -362,6 +431,7 @@ extension UnlockCoordinator: CameraCaptureDelegate {
 
 extension UnlockCoordinator: LockWatcherDelegate {
     public func lockWatcherDidLock(_ watcher: LockWatcher) {
+        startActivityWatch()
         // If the display just woke (lid opened) the lock is part of waking up,
         // so scan immediately. A deliberate lock just offers the button.
         if Date().timeIntervalSince(lastWakeAt) < 3 {
@@ -373,10 +443,14 @@ extension UnlockCoordinator: LockWatcherDelegate {
 
     public func lockWatcherDidWakeLocked(_ watcher: LockWatcher) {
         lastWakeAt = Date()
+        if activityTimer == nil { startActivityWatch() }
         startScanning()
     }
 
     public func lockWatcherDidUnlock(_ watcher: LockWatcher) {
+        // The screen saver ending lands here too, even if the session is still locked.
+        guard !LockWatcher.isScreenLocked else { return }
+        stopActivityWatch()
         stopScanning()
         state = settings.isEnabled ? .armed : .disabled
     }
