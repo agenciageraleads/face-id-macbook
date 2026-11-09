@@ -59,7 +59,7 @@ fi
 
 echo "installing conversion dependencies (first run downloads PyTorch)..."
 "$VENV/bin/pip" install --quiet --upgrade pip
-"$VENV/bin/pip" install --quiet coremltools onnx onnxruntime onnx2torch torch numpy pillow
+"$VENV/bin/pip" install --quiet coremltools onnx onnxruntime onnx2torch torch==2.7.0 numpy pillow
 
 mkdir -p "$MODELS"
 if [[ ! -f "$ONNX" ]]; then
@@ -77,7 +77,9 @@ fetch_verified "$FAS_BASE/resources/anti_spoof_models/2.7_80x80_MiniFASNetV2.pth
 fetch_verified "$FAS_BASE/resources/anti_spoof_models/4_0_0_80x80_MiniFASNetV1SE.pth" "$FAS_DIR/4_0_0_80x80_MiniFASNetV1SE.pth" 84ee1d37d96894d5e82de5a57df044ef80a58be2b218b5ed7cdfd875ec2f5990
 
 echo "converting anti-spoofing models to CoreML..."
-"$VENV/bin/python" "$CONVERSION/convert_antispoof.py" --source "$FAS_DIR" --out "$ROOT/Resources"
+for model in FASV2 FASV1SE; do
+  "$VENV/bin/python" "$CONVERSION/convert_antispoof.py" --model "$model" --source "$FAS_DIR" --out "$ROOT/Resources"
+done
 
 echo "done: $COMPILED"
 echo "now run: xcodegen generate"

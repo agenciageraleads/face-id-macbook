@@ -15,10 +15,10 @@ import coremltools as ct
 import numpy as np
 import torch
 
-MODELS = [
-    ("FASV2", "MiniFASNetV2", "2.7_80x80_MiniFASNetV2.pth"),
-    ("FASV1SE", "MiniFASNetV1SE", "4_0_0_80x80_MiniFASNetV1SE.pth"),
-]
+MODELS = {
+    "FASV2": ("MiniFASNetV2", "2.7_80x80_MiniFASNetV2.pth"),
+    "FASV1SE": ("MiniFASNetV1SE", "4_0_0_80x80_MiniFASNetV1SE.pth"),
+}
 
 
 class WithSoftmax(torch.nn.Module):
@@ -32,6 +32,7 @@ class WithSoftmax(torch.nn.Module):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--model", choices=MODELS, required=True)
     parser.add_argument("--source", type=pathlib.Path, required=True)
     parser.add_argument("--out", type=pathlib.Path, required=True)
     args = parser.parse_args()
@@ -40,28 +41,29 @@ def main() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    for name, constructor, weights in MODELS:
-        net = getattr(module, constructor)(conv6_kernel=(5, 5))
-        state = torch.load(args.source / weights, map_location="cpu", weights_only=True)
-        net.load_state_dict({k.removeprefix("module."): v for k, v in state.items()})
-        wrapped = WithSoftmax(net).eval()
+    name = args.model
+    constructor, weights = MODELS[name]
+    net = getattr(module, constructor)(conv6_kernel=(5, 5))
+    state = torch.load(args.source / weights, map_location="cpu", weights_only=True)
+    net.load_state_dict({k.removeprefix("module."): v for k, v in state.items()})
+    wrapped = WithSoftmax(net).eval()
 
-        example = torch.rand(1, 3, 80, 80) * 255
-        model = ct.convert(
-            torch.jit.trace(wrapped, example),
-            inputs=[ct.TensorType(name="image", shape=(1, 3, 80, 80), dtype=np.float32)],
-            outputs=[ct.TensorType(name="probs")],
-            minimum_deployment_target=ct.target.macOS14,
-            compute_precision=ct.precision.FLOAT32,
-        )
-        package = args.out / f"{name}.mlpackage"
-        model.save(str(package))
+    example = torch.rand(1, 3, 80, 80) * 255
+    model = ct.convert(
+        torch.jit.trace(wrapped, example),
+        inputs=[ct.TensorType(name="image", shape=(1, 3, 80, 80), dtype=np.float32)],
+        outputs=[ct.TensorType(name="probs")],
+        minimum_deployment_target=ct.target.macOS14,
+        compute_precision=ct.precision.FLOAT32,
+    )
+    package = args.out / f"{name}.mlpackage"
+    model.save(str(package))
 
-        difference = np.abs(wrapped(example).detach().numpy() - model.predict({"image": example.numpy()})["probs"]).max()
-        print(f"{name}: CoreML vs PyTorch max difference {difference:.2e}")
-        if difference > 1e-3:
-            raise SystemExit(f"{name}: parity check failed")
-        subprocess.run(["xcrun", "coremlc", "compile", str(package), str(args.out)], check=True, capture_output=True)
+    difference = np.abs(wrapped(example).detach().numpy() - model.predict({"image": example.numpy()})["probs"]).max()
+    print(f"{name}: CoreML vs PyTorch max difference {difference:.2e}")
+    if difference > 1e-3:
+        raise SystemExit(f"{name}: parity check failed")
+    subprocess.run(["xcrun", "coremlc", "compile", str(package), str(args.out)], check=True, capture_output=True)
 
 
 if __name__ == "__main__":
